@@ -429,7 +429,7 @@ export default e => {
         img.onload = accept;
         img.onerror = reject;
         img.crossOrigin = 'Aynonymous';
-        img.src = './scenes/wassie/test.png';
+        img.src = 'https://webaverse.github.io/wtd/test.png';
       });
 
       const canvas = document.createElement('canvas');
