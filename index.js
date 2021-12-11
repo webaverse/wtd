@@ -190,7 +190,7 @@ export default e => {
         ${THREE.ShaderChunk.logdepthbuf_vertex}
       }
     `;
-    console.log(vertexShader);
+
     const material = new THREE.ShaderMaterial({
       uniforms,
       vertexShader,
