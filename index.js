@@ -18,7 +18,7 @@ export default e => {
   // const contractAddress = '${this.contractAddress}';
   // const contractAddress = '0x1D20A51F088492A0f1C57f047A9e30c9aB5C07Ea';
   // const tokenId = parseInt('${this.tokenId}', 10);
-  // const tokenId = parseInt('389', 10);
+  const tokenId = parseInt('3005', 10);
   // console.log('got token id', tokenId);
 
   const originalAppPosition = app.position.clone();
@@ -220,7 +220,7 @@ export default e => {
         }
     `,
       transparent: false,
-      side: THREE.BackSide,
+      side: THREE.DoubleSide,
       // polygonOffset: true,
       // polygonOffsetFactor: -1,
       // polygonOffsetUnits: 1,
@@ -229,46 +229,6 @@ export default e => {
     imageMesh.position.copy(originalAppPosition);
     imageMesh.position.y = 0.5;
     imageMesh.quaternion.identity();
-
-    const materialBack = new THREE.ShaderMaterial({
-      uniforms,
-      vertexShader,
-      fragmentShader: `
-        precision highp float;
-        precision highp int;
-
-        #define PI 3.1415926535897932384626433832795
-
-        // uniform float uTime;
-        uniform sampler2D map;
-        uniform vec3 uCameraDirection;
-        
-        varying vec2 vUv;
-        // varying vec3 vPosition;
-        // varying vec3 vNormal;
-
-        ${THREE.ShaderChunk.logdepthbuf_pars_fragment}
-
-        void main() {
-          gl_FragColor = texture(map, vUv);
-          if (gl_FragColor.a < 0.1) {
-            discard;
-          }
-          gl_FragColor.rgb = vec3(0.);
-
-          ${THREE.ShaderChunk.logdepthbuf_fragment}
-        }
-        `,
-      transparent: false,
-      side: THREE.FrontSide,
-      // polygonOffset: true,
-      // polygonOffsetFactor: -1,
-      // polygonOffsetUnits: 1,
-    });
-    const imageMeshBack = new THREE.Mesh(geometry, materialBack);
-    // imageMeshBack.rotation.order = 'YXZ';
-    // imageMeshBack.rotation.y = Math.PI;
-    imageMesh.add(imageMeshBack);
 
     const _chooseAnimation = (timestamp, timeDiff) => {
       const player = useLocalPlayer();
@@ -424,12 +384,91 @@ export default e => {
       // const j = await res.json();
       // console.log('got loomlocknft j', j);
 
+      var blob = new Blob([
+        `
+        function loadImage(e) {
+          const { data, width, height } = e.data;
+          const dataArray = new Uint8ClampedArray(data);
+          const queue = [
+            [0, 0],
+            [width - 1, 0],
+            [0, height - 1],
+            [width - 1, height - 1],
+          ];
+          const seen = {};
+          const _getKey = (x, y) => x + ':' + y;
+          while (queue.length > 0) {
+            const [x, y] = queue.pop();
+            const k = _getKey(x, y);
+            if (!seen[k]) {
+              seen[k] = true;
+
+              const startIndex = y * width * 4 + x * 4;
+              const endIndex = startIndex + 4;
+              const [r, g, b, a] = dataArray.slice(startIndex, endIndex);
+              if (r < 255 / 8 && g < 255 / 8 && b < 255 / 8) {
+                // nothing
+              } else {
+                dataArray[startIndex] = 0;
+                dataArray[startIndex + 1] = 0;
+                dataArray[startIndex + 2] = 0;
+                dataArray[startIndex + 3] = 0;
+
+                const _tryQueue = (x, y) => {
+                  if (x >= 0 && x < width && y >= 0 && y < height) {
+                    const k = _getKey(x, y);
+                    if (!seen[k]) {
+                      queue.push([x, y]);
+                    }
+                  }
+                };
+                _tryQueue(x - 1, y - 1);
+                _tryQueue(x, y - 1);
+                _tryQueue(x + 1, y - 1);
+
+                _tryQueue(x - 1, y);
+                _tryQueue(x, y);
+                _tryQueue(x + 1, y);
+
+                _tryQueue(x - 1, y + 1);
+                _tryQueue(x, y + 1);
+                _tryQueue(x + 1, y + 1);
+              }
+            }
+          }
+          postMessage({
+            width,
+            height,
+            data: dataArray.buffer,
+          }, [dataArray.buffer]);
+        }
+    
+        onmessage = loadImage;
+        `]);
+
+      // Obtain a blob URL reference to our worker 'file'.
+      var blobURL = window.URL.createObjectURL(blob);
+
+      var worker = new Worker(blobURL);
+
+      worker.onmessage = function (e) {
+        const { data, width, height } = e.data;
+
+        var array = new Uint8ClampedArray(data);
+        var image = new ImageData(array, width, height);
+
+        texture.image = image;
+        texture.needsUpdate = true;
+        imageMesh.material.uniforms.map.needsUpdate = true;
+        worker.terminate();
+      };
+
       const img = new Image();
       await new Promise((accept, reject) => {
         img.onload = accept;
         img.onerror = reject;
         img.crossOrigin = 'Aynonymous';
-        img.src = 'https://webaverse.github.io/wtd/test.png';
+        img.src = 'https://arweave.net/ABckdetHKeV8VgUoIZ53TMDKkTi56LhTf-Gb1Mdqx9c/' + tokenId + '.png';
       });
 
       const canvas = document.createElement('canvas');
@@ -438,58 +477,9 @@ export default e => {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const queue = [
-        [0, 0],
-        [canvas.width - 1, 0],
-        [0, canvas.height - 1],
-        [canvas.width - 1, canvas.height - 1],
-      ];
-      const seen = {};
-      const _getKey = (x, y) => x + ':' + y;
-      while (queue.length > 0) {
-        const [x, y] = queue.pop();
-        const k = _getKey(x, y);
-        if (!seen[k]) {
-          seen[k] = true;
 
-          const startIndex = y * imageData.width * 4 + x * 4;
-          const endIndex = startIndex + 4;
-          const [r, g, b, a] = imageData.data.slice(startIndex, endIndex);
-          if (r < 255 / 8 && g < 255 / 8 && b < 255 / 8) {
-            // nothing
-          } else {
-            imageData.data[startIndex] = 0;
-            imageData.data[startIndex + 1] = 0;
-            imageData.data[startIndex + 2] = 0;
-            imageData.data[startIndex + 3] = 0;
-
-            const _tryQueue = (x, y) => {
-              if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
-                const k = _getKey(x, y);
-                if (!seen[k]) {
-                  queue.push([x, y]);
-                }
-              }
-            };
-            _tryQueue(x - 1, y - 1);
-            _tryQueue(x, y - 1);
-            _tryQueue(x + 1, y - 1);
-
-            _tryQueue(x - 1, y);
-            _tryQueue(x, y);
-            _tryQueue(x + 1, y);
-
-            _tryQueue(x - 1, y + 1);
-            _tryQueue(x, y + 1);
-            _tryQueue(x + 1, y + 1);
-          }
-        }
-      }
-      ctx.putImageData(imageData, 0, 0);
-
-      texture.image = canvas;
-      texture.needsUpdate = true;
-      imageMesh.material.uniforms.map.needsUpdate = true;
+      worker.postMessage({ data: imageData.data.buffer, width: imageData.width, height: imageData.height },
+        [imageData.data.buffer]);
     })();
 
     imageMesh.position.set(0, 1.3, -0.2);
