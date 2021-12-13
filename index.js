@@ -446,7 +446,6 @@ export default e => {
         onmessage = loadImage;
         `]);
 
-      // Obtain a blob URL reference to our worker 'file'.
       var blobURL = window.URL.createObjectURL(blob);
 
       var worker = new Worker(blobURL);
@@ -461,6 +460,7 @@ export default e => {
         texture.needsUpdate = true;
         imageMesh.material.uniforms.map.needsUpdate = true;
         worker.terminate();
+        window.URL.revokeObjectURL(blobURL);
       };
 
       const img = new Image();
