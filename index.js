@@ -12,18 +12,31 @@ export default e => {
   const ERC721LoomLock = JSON.parse(JSON.stringify(ERC721));
   const tokenURIMethodAbi = ERC721LoomLock.find(m => m.name === 'tokenURI');
   const preRevealTokenURIAbi = JSON.parse(JSON.stringify(tokenURIMethodAbi));
+  const localMatrix = new THREE.Matrix4();
+  const localMatrix2 = new THREE.Matrix4();
+  const localVector = new THREE.Vector3();
+  const localPath = new THREE.Vector3();
+
   preRevealTokenURIAbi.name = 'preRevealTokenURI';
   ERC721LoomLock.push(preRevealTokenURIAbi);
 
   // const contractAddress = '${this.contractAddress}';
   // const contractAddress = '0x1D20A51F088492A0f1C57f047A9e30c9aB5C07Ea';
   // const tokenId = parseInt('${this.tokenId}', 10);
-  const tokenId = parseInt('3005', 10);
-  // console.log('got token id', tokenId);
 
+  const tokenComponent = app.getComponent('token');
+  const waypointsComponent = app.getComponent('waypoints');
+
+  const tokenId = parseInt(tokenComponent.id, 10);
+  const waypoints = waypointsComponent;
+
+  let pathGroupIndex = 0;
+  let pathIndex = 0;
+  let reachedEnd = false;
+  
   const originalAppPosition = app.position.clone();
-  app.position.set(0, 0, 0);
-  app.quaternion.set(0, 0, 0, 1);
+  //app.position.set(0, 0, 0);
+  //app.quaternion.set(0, 0, 0, 1);
   app.scale.set(1, 1, 1);
   app.name = 'wassie';
 
@@ -241,27 +254,30 @@ export default e => {
           type: 'jump',
           velocity,
           tick(timestamp, timeDiff) {
-            imageMesh.position.add(velocity.clone().multiplyScalar(timeDiff / 1000));
+            app.position.add(velocity.clone().multiplyScalar(timeDiff / 1000));
             velocity.add(physics.getGravity().clone().multiplyScalar(timeDiff / 1000));
-            if (imageMesh.position.y < 0.5) {
-              imageMesh.position.y = 0.5;
+            if (app.position.y < 0.5) {
+              app.position.y = 0.5;
               return true;
             }
           },
         };
       } else {
-        const startPosition = imageMesh.position.clone();
-        const offset = new THREE.Vector3(-0.5 + Math.random(), 0, -0.5 + Math.random()).multiplyScalar(20);
+        const startPosition = app.position.clone();
+        const offset = localPath.fromArray(waypoints[pathGroupIndex][pathIndex]);
+        //const offset = new THREE.Vector3(-0.5 + Math.random(), 0, -0.5 + Math.random()).multiplyScalar(20);
         const offsetLength = offset.length();
-        if (offsetLength < 5) {
+        /*if (offsetLength < 5) {
           offset.divideScalar(offsetLength).multiplyScalar(5);
-        }
-        const endPosition = startPosition.clone()
-          .add(offset);
-        const walkSpeed = 1 / (0.1 + Math.random());
+        }*/
+        /*const endPosition = startPosition.clone()
+          .copy(offset);*/
+        const endPosition = offset.clone();
+        //const walkSpeed = 1 / (0.1 + Math.random());
+        const walkSpeed = Math.random() * (4 - 1) + 1;
         const startTime = timestamp;
         const endTime = startTime + (endPosition.distanceTo(startPosition) / walkSpeed) * 1000;
-        const startQuaternion = imageMesh.quaternion.clone();
+        const startQuaternion = app.quaternion.clone();
         const endQuaternion = new THREE.Quaternion()
           .setFromRotationMatrix(
             new THREE.Matrix4().lookAt(
@@ -286,9 +302,10 @@ export default e => {
           endTime,
           tick(timestamp, timeDiff) {
             const f = Math.min((timestamp - startTime) / (endTime - startTime), 1);
+
             const targetPosition = startPosition.clone().lerp(endPosition, f);
             if (f < 1) {
-              const frameDistance = targetPosition.distanceTo(imageMesh.position);
+              const frameDistance = targetPosition.distanceTo(app.position);
               localDistanceTraveled += frameDistance;
               distanceTraveled += frameDistance;
               const targetQuaternion = startQuaternion.clone()
@@ -297,10 +314,12 @@ export default e => {
                   Math.min(localDistanceTraveled, 1)
                 );
 
-              imageMesh.position.copy(targetPosition);
-              imageMesh.quaternion.copy(targetQuaternion);
+              app.position.copy(targetPosition);
+              app.quaternion.copy(targetQuaternion);
             } else {
-              imageMesh.position.copy(targetPosition);
+              //app.position.copy(targetPosition);
+
+              _nextWaypoint(); // When reached, go to next waypoint
               return true;
             }
           },
@@ -344,7 +363,7 @@ export default e => {
 
         let lookQuaternion = new THREE.Quaternion().setFromRotationMatrix(
           new THREE.Matrix4().lookAt(
-            imageMesh.position.clone()
+            app.position.clone()
               .add(new THREE.Vector3(0, 0.25, 0)),
             player.position,
             new THREE.Vector3(0, 1, 0)
@@ -482,7 +501,7 @@ export default e => {
         [imageData.data.buffer]);
     })();
 
-    imageMesh.position.set(0, 1.3, -0.2);
+    imageMesh.position.set(0, 0, 0);
     imageMesh.renderOrder = 0;
     app.add(imageMesh);
 
@@ -494,16 +513,43 @@ export default e => {
     );
     physicsIds.push(physicsId);
     useFrame(() => {
-      const p = imageMesh.position;
-      const q = imageMesh.quaternion;
-      const s = imageMesh.scale;
-      physics.setPhysicsTransform(physicsId, p, q, s);
+      // applying physicsObject transform 
+      if(physicsId) {
+        physicsId.updateMatrixWorld();
+        localMatrix.copy(physicsId.matrixWorld)
+          .premultiply(localMatrix2.copy(app.matrixWorld).invert())
+          .decompose(imageMesh.position, imageMesh.quaternion, imageMesh.scale);
+        app.updateMatrixWorld();
+      }
     });
   }
 
+  const _nextWaypoint = () => {
+    if(pathIndex < waypoints[pathGroupIndex].length-1) {
+      pathIndex++;
+    }
+    else {
+      reachedEnd = true;
+    }
+  };
+
+  const _nextWaypointGroup = () => {
+    if(reachedEnd) { // Prevents using activate twice
+      if(pathGroupIndex < waypoints.length-1) {
+        pathGroupIndex++;
+        pathIndex = 0;
+        reachedEnd = false;
+      }
+      else {
+        // Delete app when reached last waypoint
+        removeApp(app);
+        app.destroy();
+      }
+    }
+  };
+
   app.addEventListener('activate', e => {
-    removeApp(app);
-    app.destroy();
+    _nextWaypointGroup();
   });
 
   useCleanup(() => {
