@@ -42,7 +42,7 @@
 ```
 
 #### Outer brackets `[[...]]`: 
--- `Waypoint Group`: Can be advanced with **activate** (Hold E) when the player passed all previous waypoints.
+-- `Waypoint Group`: Can advance to the next `Waypoint Group` with **activate** (Hold E) when the player passed all previous waypoints.
 
 #### Inner brackets `[...]`: 
 -- `Waypoint`: Will automatically advance to next waypoint when reached. Can be used for more tactical/fine-tuned movement (Instead of walking in a straight line)
