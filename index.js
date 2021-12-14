@@ -24,15 +24,15 @@ export default e => {
   // const contractAddress = '0x1D20A51F088492A0f1C57f047A9e30c9aB5C07Ea';
   // const tokenId = parseInt('${this.tokenId}', 10);
 
-  const tokenComponent = app.getComponent('token');
+  const wassieComponent = app.getComponent('wassie');
   const waypointsComponent = app.getComponent('waypoints');
 
-  const tokenId = parseInt(tokenComponent.id, 10);
-  const waypoints = waypointsComponent;
+  const tokenId = parseInt(wassieComponent.token.id, 10);
+  const waypoints = wassieComponent.waypoints;
 
-  let pathGroupIndex = 0;
-  let pathIndex = 0;
+  let waypointIndex = 0;
   let reachedEnd = false;
+  //let activateWaypoints = false;
   
   const originalAppPosition = app.position.clone();
   //app.position.set(0, 0, 0);
@@ -264,7 +264,7 @@ export default e => {
         };
       } else {
         const startPosition = app.position.clone();
-        const offset = localPath.fromArray(waypoints[pathGroupIndex][pathIndex]);
+        const offset = localPath.fromArray(waypoints[waypointIndex].effect.move);
         //const offset = new THREE.Vector3(-0.5 + Math.random(), 0, -0.5 + Math.random()).multiplyScalar(20);
         const offsetLength = offset.length();
         /*if (offsetLength < 5) {
@@ -302,6 +302,7 @@ export default e => {
           endTime,
           tick(timestamp, timeDiff) {
             const f = Math.min((timestamp - startTime) / (endTime - startTime), 1);
+            const trigger = waypoints[waypointIndex].trigger;
 
             const targetPosition = startPosition.clone().lerp(endPosition, f);
             if (f < 1) {
@@ -319,7 +320,11 @@ export default e => {
             } else {
               //app.position.copy(targetPosition);
 
-              _nextWaypoint(); // When reached, go to next waypoint
+              reachedEnd = true;
+
+              if(trigger === "proximity") {
+                _chooseWaypoint();
+              }
               return true;
             }
           },
@@ -524,32 +529,28 @@ export default e => {
     });
   }
 
-  const _nextWaypoint = () => {
-    if(pathIndex < waypoints[pathGroupIndex].length-1) {
-      pathIndex++;
+  const _chooseWaypoint = () => {
+    let trigger = waypoints[waypointIndex].trigger;
+    //console.log("choosing waypoint", trigger);
+    if(waypointIndex < waypoints.length-1) {
+      reachedEnd = false;
+      waypointIndex++;
     }
-    else {
-      reachedEnd = true;
-    }
-  };
+  }
 
-  const _nextWaypointGroup = () => {
-    if(reachedEnd) { // Prevents using activate twice
-      if(pathGroupIndex < waypoints.length-1) {
-        pathGroupIndex++;
-        pathIndex = 0;
-        reachedEnd = false;
-      }
-      else {
-        // Delete app when reached last waypoint
-        removeApp(app);
-        app.destroy();
-      }
+  const _requestActivate = () => {
+    let trigger = waypoints[waypointIndex].trigger;
+    //console.log(trigger, "activating", reachedEnd);
+    /*if(!activateWaypoints) {
+      activateWaypoints = true;
+    }*/
+    if(reachedEnd && trigger === "use") {
+      _chooseWaypoint();
     }
-  };
+  }
 
   app.addEventListener('activate', e => {
-    _nextWaypointGroup();
+    _requestActivate();
   });
 
   useCleanup(() => {
