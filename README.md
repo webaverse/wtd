@@ -43,9 +43,10 @@
   ]
 }
 ```
-Trigger
+## Trigger
 `use`: will advance on activate (use E)
+
 `proximity`: will advance to waypoint C when reached waypoint B
 
-Effect
+## Effect
 `move`: position to move to
