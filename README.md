@@ -51,5 +51,5 @@
 ## Effect
 `move`: position to move to
 
-Could possibly also pass actions, or displaying text at a certain waypoint like:
+Could possibly also pass actions, or display text at a certain waypoint like:
 `speak`: "Hello there traveler!"
