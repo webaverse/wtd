@@ -50,3 +50,6 @@
 
 ## Effect
 `move`: position to move to
+
+Could possibly also pass actions, or displaying text at a certain waypoint like:
+`speak`: "Hello there traveler!"
